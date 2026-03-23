@@ -27,7 +27,6 @@ EOF
     # 校验结果
     if [[ ! "$code" =~ ^[0-9]{4}$ ]]; then
         echo "❌ 识别失败: $code，重试..."
-        sleep 1
         continue
     fi
     
