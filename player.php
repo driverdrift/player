@@ -2,14 +2,36 @@
 ob_start(); 
 session_start();
 
+// --- 配置区 ---
 $db_file = 'list.json';
 $admin_password = "admin123"; 
-
-// 获取干净的路径，不带任何 ? 后的参数
 $php_self = explode('?', $_SERVER['REQUEST_URI'])[0];
 
+// 初始化数据库文件
 if (!file_exists($db_file)) { 
-    file_put_contents($db_file, json_encode([])); 
+    file_put_contents($db_file, json_encode([], JSON_UNESCAPED_UNICODE)); 
+}
+
+/**
+ * 增强版安全保存函数：解决中文编码崩溃及数据丢失问题
+ */
+function safe_save($file, $data) {
+    // 强制转换为 UTF-8，防止非 UTF-8 字符导致 JSON 编码返回 false
+    array_walk_recursive($data, function(&$item) {
+        if (is_string($item)) {
+            $item = mb_convert_encoding($item, 'UTF-8', 'UTF-8,GBK,GB2312,BIG5');
+            $item = trim($item);
+        }
+    });
+
+    $json_str = json_encode(array_values($data), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    
+    // 终极防御：如果编码失败，直接拦截写入，防止覆盖空文件
+    if ($json_str === false) {
+        die("数据保存失败！错误原因: " . json_last_error_msg() . "。请检查输入内容是否有特殊乱码。");
+    }
+    
+    return file_put_contents($file, $json_str);
 }
 
 // --- 逻辑处理区 ---
@@ -18,7 +40,6 @@ if (!file_exists($db_file)) {
 if (isset($_GET['action']) && $_GET['action'] == 'logout') { 
     unset($_SESSION['admin']); 
     header("Location: " . $php_self); 
-    echo "<script>location.href='$php_self';</script>"; // 双保险：PHP重定向失效则用JS
     exit; 
 }
 
@@ -35,22 +56,32 @@ $is_admin = isset($_SESSION['admin']);
 if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_video'])) {
     $data = json_decode(file_get_contents($db_file), true) ?: [];
     $id = $_POST['id'] ?: uniqid();
-    $raw_groups = preg_split('/[,，\s|;；]+/', $_POST['group']);
+    
+    // 使用 /u 修饰符支持中文字符分割，防止“电影牛”等词汇导致正则失效
+    $raw_groups = preg_split('/[,，\s|;；]+/u', $_POST['group']);
     $groups = array_values(array_unique(array_filter(array_map('trim', $raw_groups)))) ?: ['默认'];
     
     $new_entry = [
         'id' => $id,
-        'title' => $_POST['title'],
-        'url' => $_POST['url'],
+        'title' => trim($_POST['title']),
+        'url' => trim($_POST['url']),
         'groups' => $groups,
         'time' => $_POST['time'] ?: time()
     ];
     
-    if ($_POST['id']) {
-        foreach ($data as &$item) { if ($item['id'] == $id) { $item = $new_entry; break; } }
-    } else { $data[] = $new_entry; }
+    $found = false;
+    if (!empty($_POST['id'])) {
+        foreach ($data as &$item) { 
+            if ($item['id'] == $id) { 
+                $item = $new_entry; 
+                $found = true;
+                break; 
+            } 
+        }
+    } 
+    if (!$found) { $data[] = $new_entry; }
     
-    file_put_contents($db_file, json_encode(array_values($data), JSON_UNESCAPED_UNICODE));
+    safe_save($db_file, $data);
     header("Location: " . $php_self); 
     exit;
 }
@@ -58,30 +89,40 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_vid
 // 4. 删除逻辑
 if ($is_admin && isset($_GET['delete_id'])) {
     $target_id = $_GET['delete_id'];
-    $from_group = $_GET['from_group'] ?? ' 全部内容 ';
+    $from_group = isset($_GET['from_group']) ? trim(urldecode($_GET['from_group'])) : ' 全部内容 ';
     $data = json_decode(file_get_contents($db_file), true) ?: [];
     
     $new_data = [];
     foreach ($data as $item) {
         if ($item['id'] == $target_id) {
             if ($from_group === ' 全部内容 ') continue; 
-            $item['groups'] = array_values(array_diff($item['groups'], [$from_group]));
+            
+            $item['groups'] = array_values(array_diff($item['groups'] ?: [], [$from_group]));
             if (empty($item['groups'])) $item['groups'] = ['默认'];
             $new_data[] = $item;
         } else {
             $new_data[] = $item;
         }
     }
-    file_put_contents($db_file, json_encode(array_values($new_data), JSON_UNESCAPED_UNICODE));
+    
+    safe_save($db_file, $new_data);
     header("Location: " . $php_self); 
     exit;
 }
 
 // 5. 数据读取
 $all_data = json_decode(file_get_contents($db_file), true) ?: [];
-usort($all_data, function($a, $b) { return $b['time'] - $a['time']; });
+usort($all_data, function($a, $b) { return ($b['time'] ?? 0) - ($a['time'] ?? 0); });
+
 $groups_map = [" 全部内容 " => $all_data]; 
-foreach ($all_data as $item) { foreach ($item['groups'] as $g) { $groups_map[$g][] = $item; } }
+foreach ($all_data as $item) { 
+    if (!empty($item['groups'])) {
+        foreach ($item['groups'] as $g) { 
+            $g = trim($g);
+            if($g !== "") $groups_map[$g][] = $item; 
+        } 
+    }
+}
 ksort($groups_map);
 ?>
 <!DOCTYPE html>
@@ -95,10 +136,10 @@ ksort($groups_map);
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
     <style>
         :root { --accent: #ff0000; --bg: #0f0f0f; --panel: #1a1a1a; }
-        body { background: var(--bg); color: #fff; height: 100vh; display: flex; overflow: hidden; margin: 0; }
+        body { background: var(--bg); color: #fff; height: 100vh; display: flex; overflow: hidden; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
         .sidebar { width: 350px; background: var(--panel); border-right: 1px solid #333; display: flex; flex-direction: column; }
         .main-content { flex: 1; padding: 20px; background: #000; overflow-y: auto; }
-        .group-header { background: #252525; color: #aaa; padding: 8px 15px; font-weight: bold; font-size: 11px; margin-top: 5px; }
+        .group-header { background: #252525; color: #aaa; padding: 8px 15px; font-weight: bold; font-size: 11px; margin-top: 5px; border-left: 3px solid #444; }
         .video-item { padding: 10px 15px; border-bottom: 1px solid #222; cursor: pointer; }
         .video-item:hover { background: #333; }
         .video-item.active { background: #3d3d3d; border-left: 4px solid var(--accent); }
@@ -135,8 +176,8 @@ ksort($groups_map);
             <?php foreach ($items as $v): ?>
                 <div class="video-container-unit">
                     <div class="video-item d-flex justify-content-between align-items-center" 
-                         data-info='<?php echo json_encode($v); ?>' 
-                         onclick="playVideo('<?php echo $v['url']; ?>', '<?php echo $v['title']; ?>', this)">
+                         data-info='<?php echo htmlspecialchars(json_encode($v), ENT_QUOTES, 'UTF-8'); ?>' 
+                         onclick="playVideo('<?php echo $v['url']; ?>', '<?php echo addslashes($v['title']); ?>', this)">
                         <div class="text-truncate" style="max-width: 220px;"><i class="bi bi-play-circle me-2"></i><?php echo htmlspecialchars($v['title']); ?></div>
                         <?php if($is_admin): ?>
                             <div class="small">
@@ -156,7 +197,7 @@ ksort($groups_map);
     <h4 id="v-title" class="mb-3 fw-bold">等待播放...</h4>
     <div class="video-container" style="background:#000; position:relative; padding-bottom:56.25%; height:0; overflow:hidden;">
         <video id="player" class="video-js vjs-big-play-centered" controls preload="auto" 
-               style="position:absolute; top:0; left:0; width:100%; height:100%;"></video>
+                style="position:absolute; top:0; left:0; width:100%; height:100%;"></video>
     </div>
 </div>
 
@@ -178,7 +219,7 @@ ksort($groups_map);
             <input type="hidden" name="time" class="t-time">
             <input type="text" name="title" class="form-control t-title mb-2" placeholder="标题" required>
             <input type="text" name="url" class="form-control t-url mb-2" placeholder="URL" required>
-            <input type="text" name="group" class="form-control t-group mb-2" placeholder="分组">
+            <input type="text" name="group" class="form-control t-group mb-2" placeholder="分组 (中文逗号或空格隔开)">
             <div class="d-flex gap-2">
                 <button type="submit" name="save_video" class="btn btn-danger btn-sm w-100">保存</button>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="closeEdit(this)">取消</button>
@@ -189,17 +230,18 @@ ksort($groups_map);
 
 <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 <script>
-    const vPlayer = videojs('player', { playbackRates: [0.5, 1, 1.5, 2] });
+    const vPlayer = videojs('player', { 
+        playbackRates: [0.5, 1, 1.5, 2],
+        fluid: true 
+    });
 
-    // 统一跳转函数：清理当前 URL 后加上新参数，防止参数叠加
     function navTo(query) {
-        const purePath = window.location.pathname;
-        window.location.href = purePath + '?' + query;
+        window.location.href = window.location.pathname + '?' + query;
     }
 
-    function confirmDel(id, group) {
-        if(confirm('确认删除吗？')) {
-            navTo(`delete_id=${id}&from_group=${group}`);
+    function confirmDel(id, groupEncoded) {
+        if(confirm(`确认从此分类中移除吗？`)) {
+            navTo(`delete_id=${id}&from_group=${groupEncoded}`);
         }
     }
 
@@ -225,11 +267,12 @@ ksort($groups_map);
         const data = JSON.parse(itemEl.getAttribute('data-info'));
         const slot = document.getElementById(`edit-slot-${id}`);
         const template = document.getElementById('edit-template').querySelector('.inline-edit-panel').cloneNode(true);
+        
         template.querySelector('.t-id').value = data.id;
         template.querySelector('.t-time').value = data.time || '';
         template.querySelector('.t-title').value = data.title;
         template.querySelector('.t-url').value = data.url;
-        template.querySelector('.t-group').value = data.groups.join(',');
+        template.querySelector('.t-group').value = data.groups ? data.groups.join(',') : '';
         slot.appendChild(template);
     }
 
@@ -242,7 +285,11 @@ ksort($groups_map);
 
     function closeEdit(btn) { btn.closest('.inline-edit-panel').remove(); }
     function showLogin() { document.getElementById('loginPop').style.display = 'block'; }
-    window.onclick = e => { if(e.target == document.getElementById('loginPop')) document.getElementById('loginPop').style.display = 'none'; }
+    
+    window.onclick = e => { 
+        if(e.target == document.getElementById('loginPop')) 
+            document.getElementById('loginPop').style.display = 'none'; 
+    }
 </script>
 </body>
 </html>
