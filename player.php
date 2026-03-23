@@ -315,7 +315,7 @@ ksort($groups_map);
     }
 
     function openInlineEdit(id, btn) {
-        document.querySelectorAll('.inline-edit-panel').forEach(p => p.remove());
+        document.querySelectorAll('.video-container-unit .inline-edit-panel').forEach(p => p.remove());
         const itemEl = btn.closest('.video-item');
         const data = JSON.parse(itemEl.getAttribute('data-info'));
         const slot = document.getElementById(`edit-slot-${id}`);
