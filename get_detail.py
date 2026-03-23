@@ -106,9 +106,6 @@ body {
     max-width: 1600px;
 }
 
-/* H1靠左 */
-h1 {margin: 10px 0; text-align: left;}
-
 /* 顶部信息+封面容器（浅色圆角） */
 .info-cover {
     display: flex; 
@@ -120,8 +117,17 @@ h1 {margin: 10px 0; text-align: left;}
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 .info {flex: 2; text-align: left; display: flex; flex-direction: column; justify-content: center;}
+.info h1 {margin: 0 0 10px 0; font-size: 24px;}
 .info p {margin: 5px 0;}
 .info p strong {display: inline-block; width: 60px; text-align: right; margin-right: 5px;}
+
+/* 连载 + 总集数一行 */
+.info .row {
+    display: flex;
+    gap: 20px;
+}
+
+/* 封面 */
 .cover {flex: 1; display: flex; justify-content: flex-end; align-items: center;}
 .cover img {width: 100%; max-width: 320px; border-radius: 12px; cursor: pointer;}
 
@@ -138,8 +144,8 @@ h1 {margin: 10px 0; text-align: left;}
 .line-buttons button {padding: 5px 10px; cursor: pointer; border: 1px solid #0077cc; background: white; border-radius: 4px;}
 .line-buttons button.active {background: #0077cc; color: white;}
 
-/* 集数 */
-.episodes {display: flex; flex-wrap: wrap; gap: 5px; overflow-x: auto; padding-bottom: 10px;}
+/* 集数列表，去掉小黑点 */
+.episodes {display: flex; flex-wrap: wrap; gap: 5px; overflow-x: auto; padding-bottom: 10px; list-style: none; margin: 0; padding-left: 0;}
 .episodes li {padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; white-space: nowrap;}
 
 /* 系列影片容器 */
@@ -159,17 +165,18 @@ h1 {margin: 10px 0; text-align: left;}
 <body>
 <div class="main-container">
 
-<h1>{{ title }}</h1>
-
 <!-- 顶部信息+封面 -->
 <div class="info-cover">
     <div class="info">
+        <h1>{{ title }}</h1>
         <p><strong>别名:</strong> {{ subtitle }}</p>
         <p><strong>导演:</strong> {{ directors|join(", ") }}</p>
         <p><strong>主演:</strong> {{ actors|join(", ") }}</p>
         <p><strong>上映:</strong> {{ release }}</p>
-        <p><strong>连载:</strong> {{ episodes_current_text }}</p>
-        <p><strong>总集数:</strong> {{ episodes_total_text }}</p>
+        <div class="row">
+            <p><strong>连载:</strong> {{ episodes_current_text }}</p>
+            <p><strong>总集数:</strong> {{ episodes_total_text }}</p>
+        </div>
         <p><strong>剧情:</strong> {{ plot }}</p>
     </div>
     <div class="cover">
