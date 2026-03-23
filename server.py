@@ -8,8 +8,7 @@ import threading
 app = Flask(__name__)
 
 BASE = "https://vidhub4.cc"
-
-lock = threading.Lock()  # 防止并发重复刷新
+lock = threading.Lock()
 
 def load_cookies():
     cookies = {}
@@ -58,49 +57,52 @@ def get_html_with_cookies(url):
         html = r.text
 
         if is_expired(html):
-            print("❌ Cookies失效（请求触发）")
+            print("❌ Cookies失效")
             run_solver()
             time.sleep(1)
             continue
 
         return html
 
-    raise Exception("多次尝试后仍失败")
+    raise Exception("多次尝试失败")
 
-# ========================
-# ✅ 定时检测线程
-# ========================
 def cookie_refresher():
     while True:
         try:
-            print("⏱ 定时检测 cookies...")
-
             test_url = f"{BASE}/vodsearch/test----------1---.html"
             cookies = load_cookies()
             r = requests.get(test_url, cookies=cookies)
 
             if is_expired(r.text):
-                print("⚠️ Cookies过期（定时检测）")
+                print("⚠️ Cookies过期（定时）")
                 run_solver()
-            else:
-                print("✅ Cookies有效")
-
         except Exception as e:
-            print("定时检测异常:", e)
+            print("检测异常:", e)
 
-        time.sleep(300)  # 5分钟
+        time.sleep(300)
 
 @app.route("/search")
 def search():
     wd = request.args.get("wd")
-    url = f"{BASE}/vodsearch/{wd}----------1---.html"
+    page = request.args.get("page", "1")
 
+    url = f"{BASE}/vodsearch/{wd}----------{page}---.html"
     html = get_html_with_cookies(url)
+
+    soup = BeautifulSoup(html, "lxml")
+
     data = parse(html)
-    return jsonify(data)
+
+    # ✅ 直接拿原分页 HTML
+    page_div = soup.select_one("#page")
+    pagination_html = str(page_div) if page_div else ""
+
+    return jsonify({
+        "results": data,
+        "pagination": pagination_html
+    })
 
 if __name__ == "__main__":
-    # 启动后台线程
     t = threading.Thread(target=cookie_refresher, daemon=True)
     t.start()
 
