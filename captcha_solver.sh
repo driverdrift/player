@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# 如果 cookies.txt 不存在则创建
+if [ ! -f cookies.txt ]; then
+    touch cookies.txt
+fi
+
 while true; do
     # 1. 获取验证码
     curl -s -c cookies.txt -b cookies.txt \
