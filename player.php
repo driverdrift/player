@@ -71,20 +71,32 @@ if ($is_admin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_vid
     header("Location: " . $php_self); exit;
 }
 
-// 3. 删除逻辑
+// 3. 删除逻辑 (修复版)
 if ($is_admin && isset($_GET['delete_id'])) {
     $target_id = $_GET['delete_id'];
-    $from_group = isset($_GET['from_group']) ? trim(urldecode($_GET['from_group'])) : ' 全部内容 ';
+    // 注意：这里的空格要和 groups_map 里的 key 完全一致
+    $from_group = isset($_GET['from_group']) ? trim(urldecode($_GET['from_group'])) : '全部内容';
     $data = json_decode(file_get_contents($db_file), true) ?: [];
     
     $new_data = [];
     foreach ($data as $item) {
         if ($item['id'] == $target_id) {
-            if ($from_group === ' 全部内容 ') continue; 
+            // 如果是在 "全部内容" 下点击删除，直接跳过该条目 (即彻底删除)
+            if (trim($from_group) === '全部内容') {
+                continue; 
+            }
+            
+            // 如果是在特定分组下点击删除，仅移除该分组标签
             $item['groups'] = array_values(array_diff($item['groups'] ?: [], [$from_group]));
-            if (empty($item['groups'])) $item['groups'] = ['默认'];
+            
+            // 如果移除后一个分组都没了，说明该视频不属于任何地方，将其彻底删除
+            // 或者如果你希望保留，就取消下面这一行的注释，它会流转到默认分组
+            if (empty($item['groups'])) continue; 
+            
             $new_data[] = $item;
-        } else { $new_data[] = $item; }
+        } else {
+            $new_data[] = $item;
+        }
     }
     safe_save($db_file, $new_data);
     header("Location: " . $php_self); exit;
