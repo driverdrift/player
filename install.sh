@@ -1,10 +1,3 @@
-apt update
-# 安装 ocr
-apt install -y tesseract-ocr
-# 安装图片预处理工具
-apt install -y imagemagick
-
-
 curl -b cookies.txt "https://vidhub4.cc/vodsearch/-------------.html?wd=robot"
 
 
