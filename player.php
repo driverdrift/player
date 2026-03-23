@@ -143,6 +143,22 @@ ksort($groups_map);
         .form-control { background: #333 !important; color: #fff !important; border: 1px solid #444 !important; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: #444; }
+		
+        /* 设置所有输入框占位符的颜色为浅灰色，确保可见度 */
+        .form-control::placeholder {
+            color: #aaa !important;
+            opacity: 1; /* 某些浏览器默认会降低透明度 */
+        }
+
+        /* 针对 IE 的兼容性写法 */
+        .form-control:-ms-input-placeholder {
+            color: #aaa !important;
+        }
+
+        /* 针对 Edge 的兼容性写法 */
+        .form-control::-ms-input-placeholder {
+            color: #aaa !important;
+        }		
     </style>
 </head>
 <body>
