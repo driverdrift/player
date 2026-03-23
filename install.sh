@@ -12,7 +12,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # 4. 安装依赖（在虚拟环境里）
-pip install flask requests beautifulsoup4 lxml
+pip install flask requests beautifulsoup4 lxml ddddocr
 
 # 5. 运行你的 server.py
 python server.py
