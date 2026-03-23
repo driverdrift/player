@@ -2,22 +2,17 @@ from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
 import subprocess
+import time
 import threading
-import os
 
 app = Flask(__name__)
 
 BASE = "https://vidhub4.cc"
 
-# 🔒 并发锁，防止多个请求同时刷新 cookies
-lock = threading.Lock()
-
+lock = threading.Lock()  # 防止并发重复刷新
 
 def load_cookies():
-    """读取 cookies.txt"""
     cookies = {}
-    if not os.path.exists("cookies.txt"):
-        return cookies
     with open("cookies.txt") as f:
         for line in f:
             if line.startswith("#") or not line.strip():
@@ -26,9 +21,7 @@ def load_cookies():
             cookies[parts[5]] = parts[6]
     return cookies
 
-
 def parse(html):
-    """解析搜索页面，返回 JSON 数据"""
     soup = BeautifulSoup(html, "lxml")
     items = []
 
@@ -50,55 +43,65 @@ def parse(html):
 
     return items
 
-
-def is_captcha_page(html):
-    """判断是否被验证码拦截"""
-    return "请输入验证码" in html or "人机验证" in html
-
-
-def refresh_cookies():
-    """调用 shell 脚本刷新 cookies"""
+def run_solver():
     with lock:
-        print("⚠️ cookies 失效，执行 captcha_solver.sh ...")
-        try:
-            subprocess.run(
-                ["bash", "captcha_solver.sh"],
-                cwd=".",      # 确保在 server.py 所在目录
-                timeout=120   # 超时 2 分钟
-            )
-            print("✅ cookies 已刷新")
-        except subprocess.TimeoutExpired:
-            print("❌ captcha_solver.sh 执行超时")
+        print("🔄 执行 captcha_solver.sh 更新 cookies...")
+        subprocess.run(["/bin/bash", "./captcha_solver.sh"])
 
+def is_expired(html):
+    return "请输入验证码" in html
 
-@app.route("/search")
-def search():
-    """搜索接口"""
-    wd = request.args.get("wd")
-    if not wd:
-        return jsonify({"error": "请提供 wd 参数"}), 400
-
-    url = f"{BASE}/vodsearch/{wd}----------1---.html"
-    cookies = load_cookies()
-
-    # 第一次请求
-    r = requests.get(url, cookies=cookies)
-    html = r.text
-
-    # 如果被验证码拦截，刷新 cookies 再请求一次
-    if is_captcha_page(html):
-        refresh_cookies()
+def get_html_with_cookies(url):
+    for attempt in range(3):
         cookies = load_cookies()
         r = requests.get(url, cookies=cookies)
         html = r.text
 
-        if is_captcha_page(html):
-            return jsonify({"error": "验证码识别失败，请稍后再试"}), 503
+        if is_expired(html):
+            print("❌ Cookies失效（请求触发）")
+            run_solver()
+            time.sleep(1)
+            continue
 
+        return html
+
+    raise Exception("多次尝试后仍失败")
+
+# ========================
+# ✅ 定时检测线程
+# ========================
+def cookie_refresher():
+    while True:
+        try:
+            print("⏱ 定时检测 cookies...")
+
+            test_url = f"{BASE}/vodsearch/test----------1---.html"
+            cookies = load_cookies()
+            r = requests.get(test_url, cookies=cookies)
+
+            if is_expired(r.text):
+                print("⚠️ Cookies过期（定时检测）")
+                run_solver()
+            else:
+                print("✅ Cookies有效")
+
+        except Exception as e:
+            print("定时检测异常:", e)
+
+        time.sleep(300)  # 5分钟
+
+@app.route("/search")
+def search():
+    wd = request.args.get("wd")
+    url = f"{BASE}/vodsearch/{wd}----------1---.html"
+
+    html = get_html_with_cookies(url)
     data = parse(html)
     return jsonify(data)
 
-
 if __name__ == "__main__":
-    # 外部可访问（虚拟机 VPS）
+    # 启动后台线程
+    t = threading.Thread(target=cookie_refresher, daemon=True)
+    t.start()
+
     app.run(port=5000)
