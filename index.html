@@ -1,62 +1,116 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vidhub 搜索</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        #search-bar { margin-bottom: 20px; }
-        #search-bar input { width: 300px; padding: 8px; font-size: 16px; }
-        #search-bar button { padding: 8px 12px; font-size: 16px; cursor: pointer; }
-        #results { display: flex; flex-wrap: wrap; gap: 20px; }
-        .video-item { background: #fff; padding: 10px; border-radius: 6px; width: 200px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .video-item img { width: 100%; height: auto; border-radius: 4px; }
-        .video-item h3 { font-size: 16px; margin: 10px 0; height: 36px; overflow: hidden; }
-        .video-item a { display: inline-block; margin-right: 5px; margin-bottom: 5px; text-decoration: none; color: #fff; background: #007BFF; padding: 5px 8px; border-radius: 4px; font-size: 14px; }
-        .video-item a:hover { background: #0056b3; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vidhub 搜索</title>
+
+<style>
+body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+
+#search-bar { margin-bottom: 20px; }
+#search-bar input { width: 300px; padding: 8px; }
+#search-bar button { padding: 8px; }
+
+#results { display: flex; flex-wrap: wrap; gap: 20px; }
+
+.video-item {
+    background: #fff;
+    padding: 10px;
+    width: 200px;
+    border-radius: 6px;
+}
+
+.video-item img { width: 100%; }
+
+#pagination {
+    margin-top: 20px;
+}
+
+/* 可选：分页样式稍微美化 */
+#pagination a, #pagination span {
+    margin-right: 5px;
+    padding: 5px 8px;
+    background: #eee;
+    text-decoration: none;
+    border-radius: 4px;
+    color: #333;
+}
+
+#pagination .page-current {
+    background: #007BFF;
+    color: white;
+}
+</style>
 </head>
+
 <body>
 
 <div id="search-bar">
-    <input type="text" id="search-input" placeholder="输入关键词搜索">
-    <button onclick="search()">搜索</button>
+    <input type="text" id="search-input" placeholder="输入关键词">
+    <button onclick="search(1)">搜索</button>
 </div>
 
 <div id="results"></div>
+<div id="pagination"></div>
 
 <script>
-function search() {
-    const keyword = document.getElementById('search-input').value.trim();
-    if (!keyword) return alert("请输入关键词");
+let currentKeyword = '';
 
-    fetch(`/search?wd=${encodeURIComponent(keyword)}`)
+function search(page = 1) {
+    const input = document.getElementById('search-input');
+
+    if (page === 1) currentKeyword = input.value.trim();
+    if (!currentKeyword) return alert("请输入关键词");
+
+    fetch(`/search?wd=${encodeURIComponent(currentKeyword)}&page=${page}`)
         .then(res => res.json())
         .then(data => {
+
+            // ===== 渲染结果 =====
             const container = document.getElementById('results');
             container.innerHTML = '';
 
-            if (data.length === 0) {
-                container.innerHTML = '<p>没有找到相关视频</p>';
+            if (data.results.length === 0) {
+                container.innerHTML = '<p>没有结果</p>';
+                document.getElementById('pagination').innerHTML = '';
                 return;
             }
 
-            data.forEach(item => {
+            data.results.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'video-item';
                 div.innerHTML = `
-                    <img src="${item.cover}" alt="${item.title}">
+                    <img src="${item.cover}">
                     <h3>${item.title}</h3>
                     <a href="${item.detail}" target="_blank">详情</a>
                     <a href="${item.play}" target="_blank">播放</a>
                 `;
                 container.appendChild(div);
             });
+
+            // ===== 渲染分页（直接用原HTML）=====
+            const pag = document.getElementById('pagination');
+            pag.innerHTML = data.pagination;
+
+            // ===== 接管点击（关键）=====
+            document.querySelectorAll('#pagination a').forEach(a => {
+                a.addEventListener('click', e => {
+                    e.preventDefault();
+
+                    const href = a.getAttribute('href');
+                    const match = href.match(/----------(\d+)---/);
+
+                    if (match) {
+                        const page = parseInt(match[1]);
+                        search(page);
+                    }
+                });
+            });
         })
         .catch(err => {
             console.error(err);
-            alert("搜索失败，请稍后再试");
+            alert("请求失败");
         });
 }
 </script>
