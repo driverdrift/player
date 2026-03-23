@@ -12,18 +12,18 @@ while true; do
 
     # 2. 使用 ddddocr 识别（指定 Python 路径）
     code=$(/root/venv/bin/python - <<'EOF'
-    import ddddocr
-    
-    ocr = ddddocr.DdddOcr(show_ad=False)
-    
-    with open("code.jpg", "rb") as f:
-        image = f.read()
-    
-    result = ocr.classification(image)
-    print(result.strip())
-    EOF
-    )
-    
+import ddddocr
+
+ocr = ddddocr.DdddOcr(show_ad=False)
+
+with open("code.jpg", "rb") as f:
+	image = f.read()
+
+result = ocr.classification(image)
+print(result.strip())
+EOF
+)
+
     # 校验结果
     if [[ ! "$code" =~ ^[0-9]{4}$ ]]; then
         echo "❌ 识别失败: $code，重试..."
