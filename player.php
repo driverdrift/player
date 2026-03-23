@@ -130,6 +130,14 @@ ksort($groups_map);
             line-height: 50px !important; 
             display: block;
         }
+		
+        /* 音量条高度与位置对齐修正 */
+        .video-js .vjs-volume-panel { display: flex !important; align-items: center !important; }
+        .video-js .vjs-volume-panel .vjs-volume-control.vjs-volume-vertical { 
+            bottom: var(--control-height) !important; 
+        }
+        .video-js .vjs-volume-bar.vjs-slider-vertical { margin-bottom: 0 !important; }
+        .video-js .vjs-volume-level { background-color: var(--accent) !important; }
         
         .inline-edit-panel { background: #222; border: 1px solid #444; padding: 15px; margin: 5px; border-radius: 8px; }
         .form-control { background: #333 !important; color: #fff !important; border: 1px solid #444 !important; }
