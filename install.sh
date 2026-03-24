@@ -20,3 +20,7 @@ python server.py
 
 # 测试
 curl "http://localhost:5000/search?wd=robot"
+
+pip install playwright
+playwright install --with-deps
+# python get_m3u8.py
