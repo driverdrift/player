@@ -4,6 +4,7 @@ curl -b cookies.txt "https://vidhub4.cc/vodsearch/-------------.html?wd=robot"
 # 1. 安装 virtualenv（如果没装）
 sudo apt update
 sudo apt install python3-venv python3-pip -y
+apt install qpdf -y
 
 # 2. 创建虚拟环境
 python3 -m venv venv
