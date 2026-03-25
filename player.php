@@ -215,6 +215,11 @@ background: rgba(255,0,0,0.01); /* 极低透明度，但浏览器仍认为可见
     pointer-events: none; /* 不阻塞鼠标点击 */
     z-index: 1000;     /* 保证在控制栏上方 */
 }
+        .video-container {
+    width: 100%;
+    aspect-ratio: 16 / 9;   /* ✅ 关键 */
+    background: #000;
+}
     </style>
 </head>
 <body>
