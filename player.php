@@ -155,12 +155,12 @@ ksort($groups_map);
             position: absolute !important;
             width: 100% !important;
             height: 4px !important;
-            top: -4px;
+            top: -40px;
             left: 0;
             padding: 0 !important;
             margin: 0 !important;
         }
-        .video-js .vjs-progress-control:hover { height: 8px !important; top: -8px; }
+        .video-js .vjs-progress-control:hover { height: 15px !important; }
         .video-js .vjs-play-progress { background-color: var(--accent) !important; }
         .video-js .vjs-play-progress:before { display: block !important; }
 
