@@ -151,16 +151,31 @@ ksort($groups_map);
 
         .video-js .vjs-spacer { display: flex !important; flex: 1 1 auto !important; }
 
-        .video-js .vjs-progress-control {
-            position: absolute !important;
-            width: 100% !important;
-            height: 10px !important;
-            top: -5px;
-            left: 0;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-        .video-js .vjs-progress-control:hover { height: 30px !important; }
+/* --- 修改后的进度条样式 --- */
+
+.video-js .vjs-progress-control {
+    position: absolute !important;
+    width: 100% !important;
+    height: 20px !important; /* 固定一个稍大的点击区域，防止跳动 */
+    top: -10px; /* 调整位置，使其悬浮在控制栏上方 */
+    left: 0;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex;
+    align-items: center; /* 确保进度条在感应区内垂直居中 */
+}
+
+/* 移除之前的 :hover height: 30px，改为对内部进度条进行视觉增强 */
+.video-js .vjs-progress-control:hover .vjs-progress-holder {
+    height: 6px !important; /* 鼠标移上去时，进度条稍微变粗一点，而不是整个控件变高 */
+    transition: height 0.1s;
+}
+
+.video-js .vjs-progress-holder {
+    height: 3px !important; /* 默认时细条 */
+    margin: 0 !important;
+    transition: height 0.1s;
+}
         .video-js .vjs-play-progress { background-color: var(--accent) !important; }
         .video-js .vjs-play-progress:before { display: block !important; }
 
