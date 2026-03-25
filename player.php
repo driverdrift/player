@@ -309,6 +309,7 @@ background: rgba(255,0,0,0.01); /* 极低透明度，但浏览器仍认为可见
 <script>
 const vPlayer = videojs('player', {
     fluid: true,
+    aspectRatio: '16:9',   // ✅ 新增这一行
     playbackRates: [0.5, 1, 1.25, 1.5, 2],
     controlBar: {
         children: [
