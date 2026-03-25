@@ -155,7 +155,7 @@ ksort($groups_map);
             position: absolute !important;
             width: 100% !important;
             height: 10px !important;
-            top: -40px;
+            top: -5px;
             left: 0;
             padding: 0 !important;
             margin: 0 !important;
@@ -189,6 +189,16 @@ ksort($groups_map);
     color: #fff;
     font-size: 16px;
     line-height: normal;
+}
+.video-js .vjs-floating-dot {
+    position: absolute;
+    width: 10px;       /* 小点大小 */
+    height: 10px;
+background: rgba(255,0,0,0.01); /* 极低透明度，但浏览器仍认为可见 */
+    top: -400px;       /* 漂浮高度，可根据需求调整 */
+    left: 50%;         /* 水平居中，也可以改为你想要的位置 */
+    pointer-events: none; /* 不阻塞鼠标点击 */
+    z-index: 1000;     /* 保证在控制栏上方 */
 }
     </style>
 </head>
@@ -507,6 +517,10 @@ document.addEventListener('keydown', function(e){
             break;
     }
 });
+const controlBar = document.querySelector('.video-js .vjs-control-bar');
+const dot = document.createElement('div');
+dot.className = 'vjs-floating-dot';
+controlBar.appendChild(dot);
 </script>
 </body>
 </html>
