@@ -154,13 +154,13 @@ ksort($groups_map);
         .video-js .vjs-progress-control {
             position: absolute !important;
             width: 100% !important;
-            height: 4px !important;
+            height: 10px !important;
             top: -40px;
             left: 0;
             padding: 0 !important;
             margin: 0 !important;
         }
-        .video-js .vjs-progress-control:hover { height: 15px !important; }
+        .video-js .vjs-progress-control:hover { height: 30px !important; }
         .video-js .vjs-play-progress { background-color: var(--accent) !important; }
         .video-js .vjs-play-progress:before { display: block !important; }
 
