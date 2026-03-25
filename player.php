@@ -278,235 +278,235 @@ ksort($groups_map);
     </div>
 </div>
 
-<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script src="./video.min.js"></script>
+<script src="./hls.js@latest"></script>
 
 <script>
-    const vPlayer = videojs('player', {
-        fluid: true,
-        playbackRates: [0.5, 1, 1.25, 1.5, 2],
-        controlBar: {
-            children: [
-                'progressControl',
-                'playToggle',
-                'volumePanel',
-                'currentTimeDisplay',
-                'timeDivider',
-                'durationDisplay',
-                'spacer',
-                'playbackRateMenuButton',
-                'QualityMenuButton', // ✅ 清晰度按钮
-                'fullscreenToggle'
-            ]
+const vPlayer = videojs('player', {
+    fluid: true,
+    playbackRates: [0.5, 1, 1.25, 1.5, 2],
+    controlBar: {
+        children: [
+            'progressControl',
+            'playToggle',
+            'volumePanel',
+            'currentTimeDisplay',
+            'timeDivider',
+            'durationDisplay',
+            'spacer',
+            'playbackRateMenuButton',
+            'QualityMenuButton',
+            'fullscreenToggle'
+        ]
+    }
+});
+
+let hls = null;
+let globalOffset = null;
+
+// 1️⃣ 确保 video 元素可聚焦
+vPlayer.ready(function() {
+    const videoEl = vPlayer.el();
+    videoEl.tabIndex = -1;
+    videoEl.focus();
+    vPlayer.userActive(true);
+});
+
+// 2️⃣ 获取 video DOM
+function getVideoEl() {
+    return vPlayer.el().getElementsByTagName('video')[0];
+}
+
+// 3️⃣ 页面导航
+function navTo(query) { window.location.href = window.location.pathname + '?' + query; }
+function confirmDel(id, groupEncoded) {
+    if(confirm('确认从此分类中删除吗？')) { navTo(`delete_id=${id}&from_group=${groupEncoded}`); }
+}
+
+// 4️⃣ HLS Fake 处理
+function findTsOffset(uint8arr) {
+    for (let i = 0; i < uint8arr.length - 1; i++) {
+        if (uint8arr[i] === 0x47 && uint8arr[i + 1] === 0x40) return i;
+    }
+    return 0;
+}
+
+async function processFakeM3U8(url) {
+    const res = await fetch(url);
+    const text = await res.text();
+    const lines = text.split('\n');
+    let firstTs = null;
+
+    for (let line of lines) {
+        line = line.trim();
+        if (line && !line.startsWith('#')) {
+            firstTs = line;
+            break;
+        }
+    }
+    if (!firstTs) return url;
+
+    const tsUrl = new URL(firstTs, url).href;
+    if (globalOffset === null) {
+        const tsRes = await fetch(tsUrl);
+        const buf = await tsRes.arrayBuffer();
+        globalOffset = findTsOffset(new Uint8Array(buf));
+        console.log("TS Offset:", globalOffset);
+    }
+
+    return URL.createObjectURL(new Blob([text], { type: 'application/vnd.apple.mpegurl' }));
+}
+
+// 5️⃣ 播放视频
+function playVideo(url, title, el) {
+    document.getElementById('v-title').innerText = title;
+    document.getElementById('video-url-display').innerText = url;
+
+    document.querySelectorAll('.video-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+
+    if(hls){ hls.destroy(); hls = null; }
+    vPlayer.pause();
+
+    const video = getVideoEl();
+    video.focus();           // 聚焦播放器
+    vPlayer.userActive(true); // 强制显示控制栏
+
+    if(url.endsWith('.m3u8.fake')) handleFake(url, video);
+    else handleNormal(url, video);
+}
+
+// 6️⃣ 重建清晰度按钮
+function rebuildQualityButton() {
+    const old = vPlayer.controlBar.getChild('QualityMenuButton');
+    if (old) vPlayer.controlBar.removeChild(old);
+    vPlayer.controlBar.addChild('QualityMenuButton', {}, vPlayer.controlBar.children().length - 1);
+}
+
+// 7️⃣ 正常播放
+function handleNormal(url, video) {
+    if(Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            rebuildQualityButton();
+            vPlayer.play();
+        });
+    } else {
+        vPlayer.src({ src: url, type: 'application/x-mpegURL' });
+        vPlayer.play();
+    }
+}
+
+// 8️⃣ Fake HLS 播放
+async function handleFake(url, video) {
+    const processedUrl = await processFakeM3U8(url);
+    hls = new Hls({
+        loader: class extends Hls.DefaultConfig.loader {
+            load(context, config, callbacks) {
+                const originalOnSuccess = callbacks.onSuccess;
+                callbacks.onSuccess = function(response, stats, context) {
+                    if(context.type === 'fragment' && globalOffset > 0){
+                        let data = new Uint8Array(response.data);
+                        if(data.length > globalOffset) data = data.slice(globalOffset);
+                        response.data = data.buffer;
+                    }
+                    originalOnSuccess(response, stats, context);
+                };
+                super.load(context, config, callbacks);
+            }
         }
     });
+    hls.loadSource(processedUrl);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        rebuildQualityButton();
+        vPlayer.play();
+    });
+}
 
-    let hls = null;
-    let globalOffset = null;
-
-    function navTo(query) { window.location.href = window.location.pathname + '?' + query; }
-
-    function confirmDel(id, groupEncoded) {
-        if(confirm('确认从此分类中删除吗？')) { navTo(`delete_id=${id}&from_group=${groupEncoded}`); }
-    }
-
-    // ✅ 查找 TS 偏移
-    function findTsOffset(uint8arr) {
-        for (let i = 0; i < uint8arr.length - 1; i++) {
-            if (uint8arr[i] === 0x47 && uint8arr[i + 1] === 0x40) {
-                return i;
-            }
-        }
-        return 0;
-    }
-
-    // ✅ 处理 fake m3u8
-    async function processFakeM3U8(url) {
-        const res = await fetch(url);
-        const text = await res.text();
-
-        const lines = text.split('\n');
-        let firstTs = null;
-
-        for (let line of lines) {
-            line = line.trim();
-            if (line && !line.startsWith('#')) {
-                firstTs = line;
-                break;
-            }
-        }
-
-        if (!firstTs) return url;
-
-        const tsUrl = new URL(firstTs, url).href;
-
-        if (globalOffset === null) {
-            const tsRes = await fetch(tsUrl);
-            const buf = await tsRes.arrayBuffer();
-            const uint8 = new Uint8Array(buf);
-
-            globalOffset = findTsOffset(uint8);
-            console.log("TS Offset:", globalOffset);
-        }
-
-        const blob = new Blob([text], { type: 'application/vnd.apple.mpegurl' });
-        return URL.createObjectURL(blob);
-    }
-
-    function playVideo(url, title, el) {
-        document.getElementById('v-title').innerText = title;
-        document.getElementById('video-url-display').innerText = url;
-
-        document.querySelectorAll('.video-item').forEach(i => i.classList.remove('active'));
-        el.classList.add('active');
-
-        const video = vPlayer.tech().el();
-
-        if (hls) {
-            hls.destroy();
-            hls = null;
-        }
-
-        if (url.endsWith('.m3u8.fake')) {
-            handleFake(url, video);
-        } else {
-            handleNormal(url, video);
-        }
-    }
-
-    function rebuildQualityButton() {
-        const old = vPlayer.controlBar.getChild('QualityMenuButton');
-        if (old) vPlayer.controlBar.removeChild(old);
-
-        vPlayer.controlBar.addChild(
-            'QualityMenuButton',
-            {},
-            vPlayer.controlBar.children().length - 1
-        );
-    }
-
-    function handleNormal(url, video) {
-        if (Hls.isSupported()) {
-            hls = new Hls();
-            hls.loadSource(url);
-            hls.attachMedia(video);
-
-            hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                rebuildQualityButton(); // ✅ 关键
-                vPlayer.play();
-            });
-        } else {
-            vPlayer.src({ src: url, type: 'application/x-mpegURL' });
-            vPlayer.play();
-        }
-    }
-
-    async function handleFake(url, video) {
-        const processedUrl = await processFakeM3U8(url);
-
-        hls = new Hls({
-            loader: class extends Hls.DefaultConfig.loader {
-                load(context, config, callbacks) {
-                    const originalOnSuccess = callbacks.onSuccess;
-
-                    callbacks.onSuccess = function(response, stats, context) {
-                        if (context.type === 'fragment' && globalOffset > 0) {
-                            let data = new Uint8Array(response.data);
-
-                            if (data.length > globalOffset) {
-                                data = data.slice(globalOffset);
-                                response.data = data.buffer;
-                            }
-                        }
-                        originalOnSuccess(response, stats, context);
-                    };
-
-                    super.load(context, config, callbacks);
-                }
-            }
-        });
-
-        hls.loadSource(processedUrl);
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, function() {
-            rebuildQualityButton(); // ✅ 关键
-            vPlayer.play();
-        });
-    }
-
-    // ✅ Video.js 清晰度组件
-    const MenuButton = videojs.getComponent('MenuButton');
-    const MenuItem = videojs.getComponent('MenuItem');
-
+// 9️⃣ 清晰度菜单
+const MenuButton = videojs.getComponent('MenuButton');
+const MenuItem = videojs.getComponent('MenuItem');
 class QualityMenuButton extends MenuButton {
-    constructor(player, options) {
-        super(player, options);
-        this.controlText('清晰度');
-    }
-
-    buildCSSClass() {
-        // 在原有 class 上加 vjs-icon-placeholder
-        return 'vjs-menu-button vjs-menu-button-icon vjs-qualitymenubutton';
-    }
-
+    constructor(player, options) { super(player, options); this.controlText('清晰度'); }
+    buildCSSClass() { return 'vjs-menu-button vjs-menu-button-icon vjs-qualitymenubutton'; }
     createItems() {
-        if (!hls || !hls.levels || hls.levels.length <= 1) return [];
+        if(!hls || !hls.levels || hls.levels.length <= 1) return [];
         const items = [];
-        items.push(new MenuItem(this.player_, {
-            label: 'AUTO',
-            selectable: true,
-            selected: hls.currentLevel === -1
-        }, () => { hls.currentLevel = -1; }));
-
-        hls.levels.forEach((level, i) => {
-            const h = level.height || '';
-            const b = Math.round(level.bitrate / 1000);
-            const label = h ? `${h}p` : `${b}k`;
-            items.push(new MenuItem(this.player_, {
-                label: label,
-                selectable: true,
-                selected: hls.currentLevel === i
-            }, () => { hls.currentLevel = i; }));
+        items.push(new MenuItem(this.player_, { label:'AUTO', selectable:true, selected:hls.currentLevel===-1 }, () => { hls.currentLevel=-1; }));
+        hls.levels.forEach((level,i)=>{
+            const h = level.height||'', b = Math.round(level.bitrate/1000);
+            const label = h?`${h}p`:`${b}k`;
+            items.push(new MenuItem(this.player_, { label, selectable:true, selected:hls.currentLevel===i }, ()=>{hls.currentLevel=i;}));
         });
         return items;
     }
 }
+videojs.registerComponent('QualityMenuButton', QualityMenuButton);
 
-    videojs.registerComponent('QualityMenuButton', QualityMenuButton);
+// 10️⃣ 搜索
+function doSearch() {
+    const kw = document.getElementById('search').value.toLowerCase();
+    document.querySelectorAll('.video-container-unit').forEach(unit=>{
+        const title = unit.querySelector('.video-item').innerText.toLowerCase();
+        unit.style.display = title.includes(kw)?'block':'none';
+    });
+}
 
-    function doSearch() {
-        const kw = document.getElementById('search').value.toLowerCase();
-        document.querySelectorAll('.video-container-unit').forEach(unit => {
-            const title = unit.querySelector('.video-item').innerText.toLowerCase();
-            unit.style.display = title.includes(kw) ? 'block' : 'none';
-        });
+// 11️⃣ 内联编辑/添加
+function openInlineEdit(id, btn) {
+    document.querySelectorAll('.video-container-unit .inline-edit-panel').forEach(p=>p.remove());
+    const itemEl = btn.closest('.video-item');
+    const data = JSON.parse(itemEl.getAttribute('data-info'));
+    const slot = document.getElementById(`edit-slot-${id}`);
+    const template = document.getElementById('edit-template').querySelector('.inline-edit-panel').cloneNode(true);
+    template.querySelector('.t-id').value = data.id;
+    template.querySelector('.t-time').value = data.time||'';
+    template.querySelector('.t-title').value = data.title;
+    template.querySelector('.t-url').value = data.url;
+    template.querySelector('.t-group').value = data.groups.join(', ');
+    slot.appendChild(template);
+}
+function openInlineAdd() {
+    const area = document.getElementById('inline-add-area');
+    area.innerHTML = '';
+    const template = document.getElementById('edit-template').querySelector('.inline-edit-panel').cloneNode(true);
+    area.appendChild(template);
+}
+function closeEdit(btn) { btn.closest('.inline-edit-panel').remove(); }
+function showLogin() { document.getElementById('loginPop').style.display='block'; }
+window.onclick = e => { if(e.target==document.getElementById('loginPop')) document.getElementById('loginPop').style.display='none'; }
+
+// 12️⃣ 鼠标移动保持控制栏显示 + 聚焦
+vPlayer.on('mousemove', ()=>{
+    vPlayer.userActive(true);
+    getVideoEl().focus();
+});
+
+// 13️⃣ 全局键盘事件（空格播放/暂停, M 静音, F 全屏）
+document.addEventListener('keydown', function(e){
+    const tag = e.target.tagName.toLowerCase();
+    if(tag==='input' || tag==='textarea') return;
+
+    switch(e.code){
+        case 'Space':
+            e.preventDefault();
+            if(vPlayer.paused()) vPlayer.play();
+            else vPlayer.pause();
+            break;
+        case 'KeyM':
+            e.preventDefault();
+            vPlayer.muted(!vPlayer.muted());
+            break;
+        case 'KeyF':
+            e.preventDefault();
+            if(!vPlayer.isFullscreen()) vPlayer.requestFullscreen();
+            else vPlayer.exitFullscreen();
+            break;
     }
-
-    function openInlineEdit(id, btn) {
-        document.querySelectorAll('.video-container-unit .inline-edit-panel').forEach(p => p.remove());
-        const itemEl = btn.closest('.video-item');
-        const data = JSON.parse(itemEl.getAttribute('data-info'));
-        const slot = document.getElementById(`edit-slot-${id}`);
-        const template = document.getElementById('edit-template').querySelector('.inline-edit-panel').cloneNode(true);
-        template.querySelector('.t-id').value = data.id;
-        template.querySelector('.t-time').value = data.time || '';
-        template.querySelector('.t-title').value = data.title;
-        template.querySelector('.t-url').value = data.url;
-        template.querySelector('.t-group').value = data.groups.join(', ');
-        slot.appendChild(template);
-    }
-
-    function openInlineAdd() {
-        const area = document.getElementById('inline-add-area');
-        area.innerHTML = '';
-        const template = document.getElementById('edit-template').querySelector('.inline-edit-panel').cloneNode(true);
-        area.appendChild(template);
-    }
-
-    function closeEdit(btn) { btn.closest('.inline-edit-panel').remove(); }
-    function showLogin() { document.getElementById('loginPop').style.display = 'block'; }
-    window.onclick = e => { if(e.target == document.getElementById('loginPop')) document.getElementById('loginPop').style.display = 'none'; }
+});
 </script>
 </body>
 </html>
